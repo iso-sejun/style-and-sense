@@ -1,0 +1,4 @@
+-e .
+streamlit>=1.36
+pillow>=10.0
+pytest>=8.0
