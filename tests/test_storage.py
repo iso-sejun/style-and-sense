@@ -4,6 +4,7 @@ from style_and_sense.metadata import (
     category_for_subcategory,
     fallback_metadata_suggestion,
     nearest_palette_color,
+    pooled_embedding_tensor,
 )
 from style_and_sense.storage import (
     create_garment,
@@ -121,3 +122,11 @@ def test_fallback_metadata_uses_filename_and_color(tmp_path):
 def test_category_for_subcategory():
     assert category_for_subcategory("sneakers") == "shoes"
     assert category_for_subcategory("cardigan") == "outerwear"
+
+
+def test_pooled_embedding_tensor_accepts_model_output_shape():
+    class Output:
+        pooler_output = "embedding"
+
+    assert pooled_embedding_tensor(Output()) == "embedding"
+    assert pooled_embedding_tensor("embedding") == "embedding"

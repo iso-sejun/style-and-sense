@@ -9,7 +9,9 @@ from style_and_sense.metadata import (
     MetadataSuggestionError,
     fallback_metadata_suggestion,
 )
+from style_and_sense.retrieval import build_garment_index, load_garment_index
 from style_and_sense.storage import (
+    count_garment_embeddings,
     create_garment,
     delete_garment,
     init_db,
@@ -81,6 +83,15 @@ def empty_metadata_suggestion() -> MetadataSuggestion:
         formality="casual",
         caption="",
     )
+
+
+def rebuild_garment_index() -> int:
+    tagger = get_fashion_clip_tagger()
+    if not hasattr(tagger, "encode_image"):
+        get_fashion_clip_tagger.clear()
+        tagger = get_fashion_clip_tagger()
+    index = build_garment_index(embed_image=tagger.encode_image)
+    return len(index.garment_ids)
 
 
 def render_upload_form() -> None:
@@ -174,6 +185,10 @@ def render_upload_form() -> None:
         laundry_status=laundry_status,
         favorite=favorite,
     )
+    try:
+        rebuild_garment_index()
+    except Exception as exc:
+        st.warning(f"Added garment, but could not update the vector index yet: {exc}")
     st.success(f"Added garment `{garment_id}` to your closet.")
     st.rerun()
 
@@ -286,6 +301,10 @@ def render_garment_editor(garment: dict) -> None:
 
     if remove_clicked:
         delete_garment(garment["id"])
+        try:
+            rebuild_garment_index()
+        except Exception as exc:
+            st.warning(f"Deleted garment, but could not refresh the vector index: {exc}")
         st.success("Garment deleted.")
         st.rerun()
 
@@ -325,9 +344,21 @@ def render_closet() -> None:
 def render_sidebar() -> None:
     rules = load_style_rules()
     categories = sorted({rule.category for rule in rules})
+    garment_index = load_garment_index()
     st.sidebar.header("Project status")
     st.sidebar.metric("Style rules", len(rules))
+    st.sidebar.metric(
+        "Indexed garments",
+        len(garment_index.garment_ids) if garment_index else count_garment_embeddings(),
+    )
     st.sidebar.caption("Categories: " + ", ".join(categories))
+    if st.sidebar.button("Rebuild garment index"):
+        try:
+            with st.spinner("Embedding closet with FashionCLIP..."):
+                indexed_count = rebuild_garment_index()
+            st.sidebar.success(f"Indexed {indexed_count} garments.")
+        except Exception as exc:
+            st.sidebar.error(f"Could not rebuild garment index: {exc}")
 
 
 def main() -> None:

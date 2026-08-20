@@ -139,6 +139,25 @@ class FashionClipTagger:
             for index, label in enumerate(labels)
         }
 
+    def encode_image(self, image_bytes: bytes):
+        image = image_from_bytes(image_bytes)
+        inputs = self.processor(images=image, return_tensors="pt")
+        with self.torch.no_grad():
+            embedding = self.model.get_image_features(**inputs)
+        embedding = pooled_embedding_tensor(embedding)
+        embedding = embedding.squeeze(0)
+        embedding = embedding / embedding.norm(p=2)
+        return embedding.cpu().numpy()
+
+    def encode_text(self, text: str):
+        inputs = self.processor(text=[text], return_tensors="pt", padding=True)
+        with self.torch.no_grad():
+            embedding = self.model.get_text_features(**inputs)
+        embedding = pooled_embedding_tensor(embedding)
+        embedding = embedding.squeeze(0)
+        embedding = embedding / embedding.norm(p=2)
+        return embedding.cpu().numpy()
+
     def suggest(self, image_bytes: bytes, filename: str | None = None) -> MetadataSuggestion:
         image = image_from_bytes(image_bytes)
         subcategory_scores = self.score_labels(image, SUBCATEGORIES)
@@ -183,6 +202,14 @@ def build_caption(
     if parts:
         return " ".join(parts)
     return filename or "uploaded garment"
+
+
+def pooled_embedding_tensor(model_output):
+    if hasattr(model_output, "pooler_output"):
+        return model_output.pooler_output
+    if hasattr(model_output, "last_hidden_state"):
+        return model_output.last_hidden_state[:, 0]
+    return model_output
 
 
 def fallback_metadata_suggestion(

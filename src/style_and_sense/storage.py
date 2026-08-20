@@ -263,6 +263,40 @@ def delete_garment(garment_id: str, db_path: Path = DB_PATH) -> None:
             image_path.unlink()
 
 
+def replace_garment_embedding_records(
+    garment_ids: list[str],
+    *,
+    embedding_model: str,
+    embedding_dim: int,
+    db_path: Path = DB_PATH,
+) -> None:
+    timestamp = now_iso()
+    with get_connection(db_path) as conn:
+        conn.execute("DELETE FROM garment_embeddings")
+        conn.executemany(
+            """
+            INSERT INTO garment_embeddings (
+                garment_id,
+                faiss_index,
+                embedding_model,
+                embedding_dim,
+                created_at
+            )
+            VALUES (?, ?, ?, ?, ?)
+            """,
+            [
+                (garment_id, index, embedding_model, embedding_dim, timestamp)
+                for index, garment_id in enumerate(garment_ids)
+            ],
+        )
+
+
+def count_garment_embeddings(db_path: Path = DB_PATH) -> int:
+    with get_connection(db_path) as conn:
+        row = conn.execute("SELECT COUNT(*) FROM garment_embeddings").fetchone()
+    return int(row[0])
+
+
 def save_uploaded_image_bytes(
     image_bytes: bytes,
     *,
