@@ -22,3 +22,20 @@ streamlit run app.py
 ```
 
 The first automated metadata suggestion may download the FashionCLIP model from Hugging Face. After that, model files are cached locally by the Python environment.
+
+For OpenAI-backed outfit generation, create a local `.env` file:
+
+```bash
+OPENAI_API_KEY=your_api_key_here
+```
+
+For Dartmouth Chat, use the OpenAI-compatible chat completions endpoint:
+
+```bash
+OPENAI_BASE_URL=https://chat.dartmouth.edu/api
+OPENAI_API_KEY=your_dartmouth_api_key
+OPENAI_MODEL=openai.gpt-5.6-sol
+OPENAI_API_MODE=chat_completions
+```
+
+If no key is set, the app uses a local fallback recommender so the demo flow still works.

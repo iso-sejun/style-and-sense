@@ -8,9 +8,12 @@ from style_and_sense.metadata import (
 )
 from style_and_sense.storage import (
     create_garment,
+    create_outfit,
+    create_recommendation_request,
     get_garment,
     init_db,
     list_garments,
+    list_recent_outfits,
     save_uploaded_image_bytes,
     update_garment,
 )
@@ -130,3 +133,32 @@ def test_pooled_embedding_tensor_accepts_model_output_shape():
 
     assert pooled_embedding_tensor(Output()) == "embedding"
     assert pooled_embedding_tensor("embedding") == "embedding"
+
+
+def test_create_recommendation_request_and_outfit(tmp_path):
+    db_path = tmp_path / "app.db"
+    init_db(db_path)
+    request_id = create_recommendation_request(
+        user_prompt="class outfit",
+        weather_text="65 degrees",
+        occasion="class",
+        raw_context_json="{}",
+        retrieved_garment_ids=["garment_1"],
+        retrieved_rule_ids=["rule_1"],
+        latency_ms=123,
+        db_path=db_path,
+    )
+    outfit_id = create_outfit(
+        request_id=request_id,
+        title="Class Fit",
+        item_ids=["garment_1", "garment_2"],
+        explanation="A simple class outfit.",
+        score=0.8,
+        db_path=db_path,
+    )
+
+    outfits = list_recent_outfits(db_path=db_path)
+
+    assert outfit_id.startswith("outfit_")
+    assert outfits[0]["title"] == "Class Fit"
+    assert outfits[0]["item_ids"] == ["garment_1", "garment_2"]

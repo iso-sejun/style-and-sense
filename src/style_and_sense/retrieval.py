@@ -138,11 +138,9 @@ def search_garments(
     garments = garments if garments is not None else list_garments()
     garment_by_id = {garment["id"]: garment for garment in garments}
     index = index if index is not None else load_garment_index()
-    if index is None or index.embeddings.size == 0:
+    if index is None or index.embeddings.size == 0 or embed_text is None:
         return metadata_search_garments(query, garments=garments, top_k=top_k)
 
-    if embed_text is None:
-        embed_text = FashionClipTagger().encode_text
     query_embedding = normalize_embedding(embed_text(query))
     scores = index.embeddings @ query_embedding
     ranked_indexes = np.argsort(-scores)[:top_k]
@@ -192,4 +190,3 @@ def garment_search_text(garment: dict) -> str:
         " ".join(garment.get("season_tags") or []),
     ]
     return " ".join(parts).lower()
-

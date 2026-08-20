@@ -9,14 +9,17 @@ from style_and_sense.metadata import (
     MetadataSuggestionError,
     fallback_metadata_suggestion,
 )
+from style_and_sense.recommendations import RecommendationResult, generate_recommendations
 from style_and_sense.retrieval import build_garment_index, load_garment_index
 from style_and_sense.storage import (
     count_garment_embeddings,
     create_garment,
     delete_garment,
+    get_garment,
     init_db,
     init_storage,
     list_garments,
+    list_recent_outfits,
     save_uploaded_image_bytes,
     update_garment,
 )
@@ -341,6 +344,80 @@ def render_closet() -> None:
                     render_garment_editor(garment)
 
 
+def render_recommendation_panel() -> None:
+    st.subheader("What should I wear?")
+    with st.form("recommendation_form"):
+        user_prompt = st.text_area(
+            "Outfit request",
+            placeholder="Class today, 65 degrees, casual but put together.",
+            height=90,
+        )
+        weather_text = st.text_input("Weather", placeholder="65 degrees, cloudy")
+        occasion = st.text_input("Occasion", placeholder="class, date, interview")
+        submitted = st.form_submit_button("Generate outfits")
+
+    if submitted:
+        if not user_prompt.strip():
+            st.error("Tell me what you are dressing for first.")
+            return
+        with st.spinner("Retrieving clothes and styling outfits..."):
+            result = generate_recommendations(
+                user_prompt.strip(),
+                weather_text=weather_text.strip() or None,
+                occasion=occasion.strip() or None,
+            )
+        st.session_state["last_recommendation"] = result
+
+    result = st.session_state.get("last_recommendation")
+    if result:
+        render_recommendation_result(result)
+
+
+def render_recommendation_result(result: RecommendationResult) -> None:
+    if result.message:
+        st.info(result.message)
+    st.caption(
+        f"Retrieved {len(result.candidate_garments)} garments and "
+        f"{len(result.style_rules)} style rules in {result.latency_ms} ms."
+    )
+    if not result.outfits:
+        st.warning(result.message or "No valid outfits could be built yet.")
+        return
+
+    columns = st.columns(min(3, len(result.outfits)))
+    for column, outfit in zip(columns, result.outfits):
+        with column:
+            render_outfit_card(outfit.title, outfit.item_ids, outfit.explanation)
+
+
+def render_outfit_card(title: str, item_ids: list[str], explanation: str) -> None:
+    st.markdown(f"**{title}**")
+    image_columns = st.columns(max(1, min(3, len(item_ids))))
+    for index, item_id in enumerate(item_ids):
+        garment = get_garment(item_id)
+        if not garment:
+            continue
+        with image_columns[index % len(image_columns)]:
+            st.image(garment["image_path"], use_container_width=True)
+            st.caption(garment["caption"] or garment["subcategory"] or garment["category"])
+    st.write(explanation)
+
+
+def render_recent_outfit_history() -> None:
+    outfits = list_recent_outfits(limit=6)
+    st.subheader("Recent outfits")
+    if not outfits:
+        st.info("Generated outfits will appear here.")
+        return
+    for outfit in outfits:
+        with st.expander(outfit["title"]):
+            render_outfit_card(
+                outfit["title"],
+                outfit["item_ids"],
+                outfit["explanation"],
+            )
+
+
 def render_sidebar() -> None:
     rules = load_style_rules()
     categories = sorted({rule.category for rule in rules})
@@ -376,8 +453,10 @@ def main() -> None:
     left, right = st.columns([1, 2])
     with left:
         render_upload_form()
+        render_recommendation_panel()
     with right:
         render_closet()
+        render_recent_outfit_history()
 
 
 if __name__ == "__main__":

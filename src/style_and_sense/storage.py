@@ -297,6 +297,106 @@ def count_garment_embeddings(db_path: Path = DB_PATH) -> int:
     return int(row[0])
 
 
+def create_recommendation_request(
+    *,
+    user_prompt: str,
+    weather_text: str | None,
+    occasion: str | None,
+    raw_context_json: str | None,
+    retrieved_garment_ids: list[str],
+    retrieved_rule_ids: list[str],
+    latency_ms: int | None,
+    db_path: Path = DB_PATH,
+) -> str:
+    request_id = f"request_{uuid.uuid4().hex[:12]}"
+    with get_connection(db_path) as conn:
+        conn.execute(
+            """
+            INSERT INTO recommendation_requests (
+                id,
+                user_prompt,
+                weather_text,
+                occasion,
+                raw_context_json,
+                retrieved_garment_ids,
+                retrieved_rule_ids,
+                latency_ms,
+                created_at
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                request_id,
+                user_prompt,
+                weather_text,
+                occasion,
+                raw_context_json,
+                encode_list(retrieved_garment_ids),
+                encode_list(retrieved_rule_ids),
+                latency_ms,
+                now_iso(),
+            ),
+        )
+    return request_id
+
+
+def create_outfit(
+    *,
+    request_id: str,
+    title: str,
+    item_ids: list[str],
+    explanation: str,
+    score: float | None = None,
+    db_path: Path = DB_PATH,
+) -> str:
+    outfit_id = f"outfit_{uuid.uuid4().hex[:12]}"
+    with get_connection(db_path) as conn:
+        conn.execute(
+            """
+            INSERT INTO outfits (
+                id,
+                request_id,
+                title,
+                item_ids,
+                explanation,
+                score,
+                created_at
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                outfit_id,
+                request_id,
+                title,
+                encode_list(item_ids),
+                explanation,
+                score,
+                now_iso(),
+            ),
+        )
+    return outfit_id
+
+
+def row_to_outfit(row: sqlite3.Row) -> dict:
+    outfit = dict(row)
+    outfit["item_ids"] = decode_list(outfit.get("item_ids"))
+    return outfit
+
+
+def list_recent_outfits(limit: int = 10, db_path: Path = DB_PATH) -> list[dict]:
+    with get_connection(db_path) as conn:
+        rows = conn.execute(
+            """
+            SELECT *
+            FROM outfits
+            ORDER BY created_at DESC
+            LIMIT ?
+            """,
+            (limit,),
+        ).fetchall()
+    return [row_to_outfit(row) for row in rows]
+
+
 def save_uploaded_image_bytes(
     image_bytes: bytes,
     *,
