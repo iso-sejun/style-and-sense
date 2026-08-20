@@ -20,3 +20,5 @@ source .venv/bin/activate
 pip install -r requirements.txt
 streamlit run app.py
 ```
+
+The first automated metadata suggestion may download the FashionCLIP model from Hugging Face. After that, model files are cached locally by the Python environment.
